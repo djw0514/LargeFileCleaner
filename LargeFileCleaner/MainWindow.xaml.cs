@@ -180,12 +180,21 @@ public partial class MainWindow : Window
 
         var deleteMode = GetSelectedDeleteMode();
         var selectedBytes = selectedFiles.Sum(file => file.SizeBytes);
+        var readOnlyCount = CountReadOnlyFiles(selectedFiles);
         var modeText = deleteMode == DeleteMode.RecycleBin ? "移动到回收站" : "永久删除";
         var confirmIcon = deleteMode == DeleteMode.RecycleBin ? MessageBoxImage.Question : MessageBoxImage.Warning;
+        var confirmMessage = $"将删除 {selectedFiles.Count:N0} 个文件，预计释放 {SizeFormatter.Format(selectedBytes)}。\n删除方式: {modeText}";
+
+        if (readOnlyCount > 0)
+        {
+            confirmMessage += $"\n\n检测到 {readOnlyCount:N0} 个只读文件，继续后会先解除只读属性再删除。";
+        }
+
+        confirmMessage += "\n\n是否继续？";
 
         var confirmResult = WpfMessageBox.Show(
             this,
-            $"将删除 {selectedFiles.Count:N0} 个文件，预计释放 {SizeFormatter.Format(selectedBytes)}。\n删除方式: {modeText}\n\n是否继续？",
+            confirmMessage,
             "确认删除",
             MessageBoxButton.YesNo,
             confirmIcon);
@@ -418,6 +427,29 @@ public partial class MainWindow : Window
     {
         var selectedTag = (DeleteModeComboBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString();
         return selectedTag == "Permanent" ? DeleteMode.Permanent : DeleteMode.RecycleBin;
+    }
+
+    private static int CountReadOnlyFiles(IEnumerable<LargeFileItem> files)
+    {
+        var count = 0;
+
+        foreach (var file in files)
+        {
+            try
+            {
+                if (File.Exists(file.FullPath) &&
+                    File.GetAttributes(file.FullPath).HasFlag(FileAttributes.ReadOnly))
+                {
+                    count++;
+                }
+            }
+            catch
+            {
+                // Ignore files that cannot be inspected; deletion will report them normally if they fail.
+            }
+        }
+
+        return count;
     }
 
     private static string ShortenPath(string path, int maxLength)

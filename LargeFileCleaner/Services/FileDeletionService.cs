@@ -52,13 +52,46 @@ public sealed class FileDeletionService
 
     private static void DeleteSingleFile(string path, DeleteMode mode)
     {
-        if (mode == DeleteMode.RecycleBin)
+        var originalAttributes = File.GetAttributes(path);
+        var wasReadOnly = originalAttributes.HasFlag(FileAttributes.ReadOnly);
+
+        if (wasReadOnly)
         {
-            FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+            File.SetAttributes(path, originalAttributes & ~FileAttributes.ReadOnly);
+        }
+
+        try
+        {
+            if (mode == DeleteMode.RecycleBin)
+            {
+                FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+                return;
+            }
+
+            File.Delete(path);
+        }
+        catch
+        {
+            RestoreAttributes(path, originalAttributes, wasReadOnly);
+            throw;
+        }
+    }
+
+    private static void RestoreAttributes(string path, FileAttributes originalAttributes, bool shouldRestore)
+    {
+        if (!shouldRestore || !File.Exists(path))
+        {
             return;
         }
 
-        File.Delete(path);
+        try
+        {
+            File.SetAttributes(path, originalAttributes);
+        }
+        catch
+        {
+            // Best effort only: preserve the original deletion failure as the reported error.
+        }
     }
 }
 
