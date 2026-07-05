@@ -146,7 +146,7 @@ public partial class MainWindow : Window
 
     private void SelectVisibleButton_Click(object sender, RoutedEventArgs e)
     {
-        foreach (var item in _filesView.Cast<LargeFileItem>())
+        foreach (var item in GetVisibleFiles())
         {
             item.IsSelected = true;
         }
@@ -317,7 +317,7 @@ public partial class MainWindow : Window
     private void UpdateSummary()
     {
         var selectedFiles = _files.Where(file => file.IsSelected).ToList();
-        var visibleCount = _filesView?.Cast<object>().Count() ?? 0;
+        var visibleCount = GetVisibleFiles().Count();
 
         MatchedCountTextBlock.Text = _files.Count.ToString("N0", CultureInfo.CurrentCulture);
         VisibleCountTextBlock.Text = visibleCount.ToString("N0", CultureInfo.CurrentCulture);
@@ -327,6 +327,11 @@ public partial class MainWindow : Window
         DeleteButton.IsEnabled = !_isScanning && !_isDeleting && selectedFiles.Count > 0;
         SelectVisibleButton.IsEnabled = !_isScanning && !_isDeleting && visibleCount > 0;
         ClearSelectionButton.IsEnabled = !_isScanning && !_isDeleting && selectedFiles.Count > 0;
+    }
+
+    private IEnumerable<LargeFileItem> GetVisibleFiles()
+    {
+        return _filesView?.OfType<LargeFileItem>() ?? [];
     }
 
     private void UpdateScanStats()
