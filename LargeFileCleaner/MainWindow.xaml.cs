@@ -111,7 +111,10 @@ public partial class MainWindow : Window
                 _scanCancellation.Token);
 
             ApplyScanSummary(summary);
-            StatusTextBlock.Text = $"扫描完成，找到 {summary.MatchedFiles:N0} 个大文件，总大小 {SizeFormatter.Format(summary.MatchedBytes)}。";
+            if (!_isDeleting)
+            {
+                StatusTextBlock.Text = BuildScanCompletedMessage(summary);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -166,7 +169,7 @@ public partial class MainWindow : Window
 
     private async void DeleteButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_isScanning || _isDeleting)
+        if (_isDeleting)
         {
             return;
         }
@@ -184,6 +187,11 @@ public partial class MainWindow : Window
         var modeText = deleteMode == DeleteMode.RecycleBin ? "移动到回收站" : "永久删除";
         var confirmIcon = deleteMode == DeleteMode.RecycleBin ? MessageBoxImage.Question : MessageBoxImage.Warning;
         var confirmMessage = $"将删除 {selectedFiles.Count:N0} 个文件，预计释放 {SizeFormatter.Format(selectedBytes)}。\n删除方式: {modeText}";
+
+        if (_isScanning)
+        {
+            confirmMessage += "\n\n扫描仍在进行，当前只会删除已经扫描出来并勾选的文件，扫描会继续运行。";
+        }
 
         if (readOnlyCount > 0)
         {
@@ -225,7 +233,7 @@ public partial class MainWindow : Window
 
             await _logService.AppendAsync(logEntry);
 
-            StatusTextBlock.Text = $"删除完成，已处理 {result.DeletedFiles.Count:N0} 个文件，释放 {SizeFormatter.Format(result.DeletedBytes)}。";
+            StatusTextBlock.Text = BuildDeletionCompletedMessage(result);
             if (result.Failures.Count > 0)
             {
                 WpfMessageBox.Show(
@@ -260,7 +268,11 @@ public partial class MainWindow : Window
             AddFile(progress.FoundFile);
         }
 
-        StatusTextBlock.Text = "正在扫描: " + ShortenPath(progress.CurrentPath, 96);
+        if (!_isDeleting)
+        {
+            StatusTextBlock.Text = "正在扫描: " + ShortenPath(progress.CurrentPath, 96);
+        }
+
         UpdateScanStats();
         UpdateSummary();
     }
@@ -333,9 +345,9 @@ public partial class MainWindow : Window
         SelectedCountTextBlock.Text = selectedFiles.Count.ToString("N0", CultureInfo.CurrentCulture);
         SelectedSizeTextBlock.Text = SizeFormatter.Format(selectedFiles.Sum(file => file.SizeBytes));
 
-        DeleteButton.IsEnabled = !_isScanning && !_isDeleting && selectedFiles.Count > 0;
-        SelectVisibleButton.IsEnabled = !_isScanning && !_isDeleting && visibleCount > 0;
-        ClearSelectionButton.IsEnabled = !_isScanning && !_isDeleting && selectedFiles.Count > 0;
+        DeleteButton.IsEnabled = !_isDeleting && selectedFiles.Count > 0;
+        SelectVisibleButton.IsEnabled = !_isDeleting && visibleCount > 0;
+        ClearSelectionButton.IsEnabled = !_isDeleting && selectedFiles.Count > 0;
     }
 
     private IEnumerable<LargeFileItem> GetVisibleFiles()
@@ -387,12 +399,12 @@ public partial class MainWindow : Window
         FolderPathTextBox.IsEnabled = !busy;
         ThresholdTextBox.IsEnabled = !busy;
         ThresholdUnitComboBox.IsEnabled = !busy;
-        DeleteModeComboBox.IsEnabled = !busy;
+        DeleteModeComboBox.IsEnabled = !_isDeleting;
         ExcludeSystemDirsCheckBox.IsEnabled = !busy;
-        SearchTextBox.IsEnabled = !busy || _files.Count > 0;
+        SearchTextBox.IsEnabled = !_isDeleting;
         ScanButton.IsEnabled = !busy;
         CancelScanButton.IsEnabled = _isScanning;
-        FilesGrid.IsEnabled = !busy || _isScanning;
+        FilesGrid.IsEnabled = !_isDeleting;
 
         ScanButton.Content = _isScanning ? "扫描中..." : "开始扫描";
         DeleteButton.Content = _isDeleting ? "处理中..." : "删除所选";
@@ -427,6 +439,31 @@ public partial class MainWindow : Window
     {
         var selectedTag = (DeleteModeComboBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString();
         return selectedTag == "Permanent" ? DeleteMode.Permanent : DeleteMode.RecycleBin;
+    }
+
+    private string BuildScanCompletedMessage(ScanSummary summary)
+    {
+        var currentCount = _files.Count;
+        var currentBytes = _files.Sum(file => file.SizeBytes);
+
+        if (currentCount == summary.MatchedFiles && currentBytes == summary.MatchedBytes)
+        {
+            return $"扫描完成，找到 {summary.MatchedFiles:N0} 个大文件，总大小 {SizeFormatter.Format(summary.MatchedBytes)}。";
+        }
+
+        return $"扫描完成，共发现 {summary.MatchedFiles:N0} 个大文件；当前列表保留 {currentCount:N0} 个，总大小 {SizeFormatter.Format(currentBytes)}。";
+    }
+
+    private string BuildDeletionCompletedMessage(DeletionResult result)
+    {
+        var message = $"删除完成，已处理 {result.DeletedFiles.Count:N0} 个文件，释放 {SizeFormatter.Format(result.DeletedBytes)}。";
+
+        if (_isScanning)
+        {
+            message += " 扫描仍在继续。";
+        }
+
+        return message;
     }
 
     private static int CountReadOnlyFiles(IEnumerable<LargeFileItem> files)
