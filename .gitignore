@@ -1,0 +1,12 @@
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.cache
+*.log
+TestResults/
+release-assets/
+LargeFileCleaner/bin/
+LargeFileCleaner/obj/
