@@ -7,10 +7,13 @@
         Title="大文件清理"
         Height="760"
         Width="1180"
-        MinHeight="650"
+        MinHeight="690"
         MinWidth="980"
         Background="#F4F6F8"
-        FontFamily="Microsoft YaHei UI">
+        FontFamily="Microsoft YaHei UI"
+        Activated="Window_Activated"
+        Closing="Window_Closing"
+        Closed="Window_Closed">
     <Window.Resources>
         <SolidColorBrush x:Key="PanelBrush" Color="#FFFFFF" />
         <SolidColorBrush x:Key="BorderBrush" Color="#DDE3EA" />
@@ -260,11 +263,10 @@
         </Border>
 
         <Grid Grid.Row="2" Margin="0,0,0,14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
             <Border Background="{StaticResource PanelBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
@@ -275,15 +277,37 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="过滤" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,12,0" />
                     <TextBox x:Name="SearchTextBox"
                              Grid.Column="1"
                              TextChanged="SearchTextBox_TextChanged" />
+                    <CheckBox x:Name="DuplicatesOnlyCheckBox"
+                              Grid.Column="2"
+                              Content="仅显示重复文件"
+                              Margin="16,0,14,0"
+                              IsEnabled="False"
+                              Checked="DuplicatesOnlyCheckBox_Changed"
+                              Unchecked="DuplicatesOnlyCheckBox_Changed" />
+                    <Button x:Name="FindDuplicatesButton"
+                            Grid.Column="3"
+                            Content="查找重复文件"
+                            Margin="0,0,10,0"
+                            Click="FindDuplicatesButton_Click"
+                            ToolTip="仅分析当前扫描结果；按文件主数据流的完整内容精确判定" />
+                    <Button x:Name="SelectDuplicateCopiesButton"
+                            Grid.Column="4"
+                            Content="每组保留一份"
+                            IsEnabled="False"
+                            Click="SelectDuplicateCopiesButton_Click"
+                            ToolTip="每个重复组保留路径排序靠前的一份，并勾选其余副本" />
                 </Grid>
             </Border>
 
-            <UniformGrid Grid.Column="2" Columns="4">
+            <UniformGrid Grid.Row="1" Columns="4" Margin="0,10,0,0">
                 <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,10,0" MinWidth="128">
                     <StackPanel>
                         <TextBlock Text="匹配文件" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
@@ -316,12 +340,30 @@
                   Margin="0,0,0,14"
                   IsReadOnly="False"
                   CanUserAddRows="False"
-                  CanUserDeleteRows="False">
+                  CanUserDeleteRows="False"
+                  SelectionMode="Single"
+                  PreviewMouseRightButtonDown="FilesGrid_PreviewMouseRightButtonDown"
+                  ContextMenuOpening="FilesGrid_ContextMenuOpening">
+            <DataGrid.ContextMenu>
+                <ContextMenu>
+                    <MenuItem x:Name="MoveFilesMenuItem"
+                              Header="移动所选文件到其他目录..."
+                              Click="MoveFilesMenuItem_Click" />
+                    <MenuItem x:Name="KeepDuplicateMenuItem"
+                              Header="将此文件设为重复组保留项"
+                              Click="KeepDuplicateMenuItem_Click" />
+                    <Separator x:Name="FilesContextMenuSeparator" />
+                    <MenuItem x:Name="OpenContainingFolderMenuItem"
+                              Header="打开文件所在目录"
+                              Click="OpenContainingFolderMenuItem_Click" />
+                </ContextMenu>
+            </DataGrid.ContextMenu>
             <DataGrid.Columns>
                 <DataGridTemplateColumn Width="46" IsReadOnly="False">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                      ToolTip="重复组保留项若被勾选，删除操作会被阻止；移动操作不受影响"
                                       HorizontalAlignment="Center"
                                       VerticalAlignment="Center" />
                         </DataTemplate>
@@ -332,6 +374,7 @@
                 <DataGridTextColumn Header="大小" Binding="{Binding SizeText}" SortMemberPath="SizeBytes" Width="120" IsReadOnly="True" />
                 <DataGridTextColumn Header="修改时间" Binding="{Binding ModifiedTime, StringFormat=yyyy-MM-dd HH:mm}" SortMemberPath="ModifiedTime" Width="150" IsReadOnly="True" />
                 <DataGridTextColumn Header="类型" Binding="{Binding Extension}" SortMemberPath="Extension" Width="90" IsReadOnly="True" />
+                <DataGridTextColumn Header="重复状态" Binding="{Binding DuplicateStatusText}" Width="165" IsReadOnly="True" CanUserSort="False" />
                 <DataGridTextColumn Header="完整路径" Binding="{Binding FullPath}" SortMemberPath="FullPath" Width="*" IsReadOnly="True" />
             </DataGrid.Columns>
         </DataGrid>
